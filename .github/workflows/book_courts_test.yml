@@ -1,7 +1,38 @@
 name: book_courts_test
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      profiles:
+        description: "Comma-separated profiles to book with, e.g. paddy,hannah"
+        required: true
+        default: "paddy,hannah"
+        type: string
+      locations:
+        description: "Comma-separated location ids, e.g. 144,3"
+        required: true
+        default: "144,3"
+        type: string
+      days_ahead:
+        description: "How many days ahead to search"
+        required: true
+        default: "2"
+        type: string
+      window_start:
+        description: "Booking window start, HH:MM"
+        required: true
+        default: "14:00"
+        type: string
+      window_end:
+        description: "Booking window end, HH:MM"
+        required: true
+        default: "16:00"
+        type: string
+      dry_run:
+        description: "Plan only without confirming bookings"
+        required: true
+        default: true
+        type: boolean
 
 jobs:
   test_booking:
@@ -9,6 +40,10 @@ jobs:
     env:
       lifestyles_email: ${{ secrets.LIFESTYLES_EMAIL }}
       lifestyles_password: ${{ secrets.LIFESTYLES_PASSWORD }}
+      EMAIL_PADDY: ${{ secrets.LIFESTYLES_EMAIL }}
+      PASSWORD_PADDY: ${{ secrets.LIFESTYLES_PASSWORD }}
+      EMAIL_HANNAH: ${{ secrets.LIFESTYLES_EMAIL_HANNAH }}
+      PASSWORD_HANNAH: ${{ secrets.LIFESTYLES_PASSWORD_HANNAH }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -24,9 +59,41 @@ jobs:
           pip install requests beautifulsoup4 python-dotenv
 
       - name: book_court
+        env:
+          INPUT_PROFILES: ${{ inputs.profiles }}
+          INPUT_LOCATIONS: ${{ inputs.locations }}
+          INPUT_DAYS_AHEAD: ${{ inputs.days_ahead }}
+          INPUT_WINDOW_START: ${{ inputs.window_start }}
+          INPUT_WINDOW_END: ${{ inputs.window_end }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          python -m lifestyles_browser.cli --badminton-club-booking \
-            --days-ahead 2 \
-            --window-start 14:00 \
-            --window-end 16:00 \
-            --dry-run
+          args=(--badminton-club-booking)
+          args+=(--days-ahead "$INPUT_DAYS_AHEAD")
+          args+=(--window-start "$INPUT_WINDOW_START")
+          args+=(--window-end "$INPUT_WINDOW_END")
+
+          IFS=',' read -r -a profiles <<< "$INPUT_PROFILES"
+          for profile in "${profiles[@]}"; do
+            trimmed_profile="$(echo "$profile" | xargs)"
+            if [ -n "$trimmed_profile" ]; then
+              args+=(--profile "$trimmed_profile")
+            fi
+          done
+
+          IFS=',' read -r -a locations <<< "$INPUT_LOCATIONS"
+          for location in "${locations[@]}"; do
+            trimmed_location="$(echo "$location" | xargs)"
+            if [ -n "$trimmed_location" ]; then
+              args+=(--location "$trimmed_location")
+            fi
+          done
+
+          if [ "$INPUT_DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+
+          printf 'Running command: python -m lifestyles_browser.cli'
+          printf ' %q' "${args[@]}"
+          printf '\n'
+
+          python -m lifestyles_browser.cli "${args[@]}"

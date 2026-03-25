@@ -3,45 +3,16 @@ name: book_courts_wednesday
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: "0 7 * * WED"
+    - cron: "50 6 * * WED"
 
 jobs:
-  # tennis_wednesday_paddy:
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     lifestyles_email: ${{ secrets.LIFESTYLES_EMAIL }}
-  #     lifestyles_password: ${{ secrets.LIFESTYLES_PASSWORD }}
-  #   steps:
-  #     - name: checkout
-  #       uses: actions/checkout@v4
-
-  #     - name: set_up_python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.11"
-
-  #     - name: install_dependencies
-  #       run: |
-  #         python -m pip install --upgrade pip
-  #         pip install requests beautifulsoup4 python-dotenv
-
-  #     - name: timezone_check
-  #       uses: ./.github/actions/timezone-check
-
-  #     - name: book_court
-  #       if: github.event_name == 'workflow_dispatch' || env.RUN_BOOKING == 'true'
-  #       run: |
-  #         python -m lifestyles_browser.booking \
-  #           --activity-id 100 \
-  #           --days-ahead 7 \
-  #           --window-start 18:00 \
-  #           --window-end 20:00
-
-  badminton_wednesday_paddy:
+  badminton_wednesday:
     runs-on: ubuntu-latest
     env:
-      lifestyles_email: ${{ secrets.LIFESTYLES_EMAIL }}
-      lifestyles_password: ${{ secrets.LIFESTYLES_PASSWORD }}
+      EMAIL_PADDY: ${{ secrets.LIFESTYLES_EMAIL }}
+      PASSWORD_PADDY: ${{ secrets.LIFESTYLES_PASSWORD }}
+      EMAIL_HANNAH: ${{ secrets.LIFESTYLES_EMAIL_HANNAH }}
+      PASSWORD_HANNAH: ${{ secrets.LIFESTYLES_PASSWORD_HANNAH }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -59,32 +30,10 @@ jobs:
       - name: book_court
         run: |
           python -m lifestyles_browser.cli --badminton-club-booking \
-            --days-ahead 7 \
-            --window-start 19:00 \
-            --window-end 21:00
-
-  badminton_wednesday_hannah:
-    runs-on: ubuntu-latest
-    env:
-      lifestyles_email: ${{ secrets.LIFESTYLES_EMAIL_HANNAH }}
-      lifestyles_password: ${{ secrets.LIFESTYLES_PASSWORD_HANNAH }}
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-
-      - name: set_up_python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: install_dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 python-dotenv
-
-      - name: book_court
-        run: |
-          python -m lifestyles_browser.cli --badminton-club-booking \
+            --profile paddy \
+            --profile hannah \
+            --location 144 \
+            --location 3 \
             --days-ahead 7 \
             --window-start 19:00 \
             --window-end 21:00
