@@ -98,7 +98,7 @@ def main():
         and course["AvailableCapacity"] > 0
     ]
 
-    if len(courses_filtered) == 0:
+    if len(courses_filtered) > 0:
         requests.post(
             "https://ntfy.sh/T6L6nmBfV7fZGpBi",
             data="spot on tennis course available 🎾",
