@@ -3,12 +3,14 @@ import json
 
 from .booking import find_and_book, list_activities, login_session
 from .booking_workflows import badminton_club_booking
+from .sport_course_booking_workflows import sport_course_availability
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Find and book Lifestyles slots.")
     parser.add_argument("--badminton-club-booking", action="store_true")
     parser.add_argument("--list-activities", action="store_true")
+    parser.add_argument("--sport-course-availability", action="store_true")
     parser.add_argument("--activity-id", type=int)
     parser.add_argument("--days-ahead", type=int, help="Days ahead from today")
     parser.add_argument("--window-start", type=str, help="HH:MM (24h)")
@@ -28,6 +30,25 @@ def main() -> None:
         default=[],
         help="Profile name. Repeat for multiple profiles.",
     )
+    parser.add_argument(
+        "--course-name",
+        type=str,
+        default="tennis",
+        help="Sport course name search term.",
+    )
+    parser.add_argument("--course-category-id", type=int)
+    parser.add_argument("--course-start-from-date", type=str)
+    parser.add_argument("--course-start-before-date", type=str)
+    parser.add_argument("--course-instructor-id", type=int)
+    parser.add_argument("--course-season-id", type=int)
+    parser.add_argument("--course-season-type-id", type=int)
+    parser.add_argument("--course-age-months", type=int)
+    parser.add_argument("--course-start-hour", type=int)
+    parser.add_argument("--course-end-hour", type=int)
+    parser.add_argument("--course-day-of-week", type=int, action="append", default=[])
+    parser.add_argument("--course-language", type=int, action="append", default=[])
+    parser.add_argument("--course-location-id", type=int, action="append", default=[])
+    parser.add_argument("--course-page", type=int)
 
     args = parser.parse_args()
 
@@ -54,6 +75,27 @@ def main() -> None:
             window_end=args.window_end,
             days_ahead=args.days_ahead or 7,
             dry_run=args.dry_run,
+        )
+        print(json.dumps(result, indent=2))
+        return
+
+    if args.sport_course_availability:
+        result = sport_course_availability(
+            profile=primary_profile,
+            name=args.course_name,
+            category_id=args.course_category_id,
+            start_from_date=args.course_start_from_date,
+            start_before_date=args.course_start_before_date,
+            instructor_id=args.course_instructor_id,
+            season_id=args.course_season_id,
+            season_type_id=args.course_season_type_id,
+            location_ids=args.course_location_id or None,
+            age_months=args.course_age_months,
+            start_hour=args.course_start_hour,
+            end_hour=args.course_end_hour,
+            days_of_week=args.course_day_of_week or None,
+            languages=args.course_language or None,
+            page=args.course_page,
         )
         print(json.dumps(result, indent=2))
         return

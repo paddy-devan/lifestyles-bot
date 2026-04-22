@@ -3,7 +3,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypedDict
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypedDict, Union
 from zoneinfo import ZoneInfo
 
 import requests
@@ -15,12 +15,19 @@ load_dotenv()
 BASE_URL = "https://liverpoollifestyles.legendonlineservices.co.uk"
 LOGIN_PATH = "/enterprise/account/login"
 LOGIN_URL = f"{BASE_URL}{LOGIN_PATH}"
+SPORT_COURSE_SEARCH_PATH = "/enterprise/sportscoursesearch"
+SPORT_COURSE_CATEGORIES_PATH = "/Enterprise/category/"
+SPORT_COURSE_LANGUAGES_PATH = "/enterprise/languages/retrieveavailablelanguages"
+SPORT_COURSE_SEASON_TYPES_PATH = "/Enterprise/seasons/getallactiveseasontypes"
+SPORT_COURSE_SEASONS_PATH = "/Enterprise/seasons/getseasons"
+SPORT_COURSE_INSTRUCTORS_PATH = "/Enterprise/api/instructors"
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_MAX_RETRIES = 3
 RETRYABLE_STATUSES = {500, 502, 503, 504}
 LONDON_TZ = ZoneInfo("Europe/London")
 
 JsonDict = Dict[str, Any]
+DateFilter = Union[str, dt.date, dt.datetime]
 
 
 class ResourceLocation(TypedDict):
@@ -62,6 +69,75 @@ def _human_date(d: dt.date) -> str:
 
 def _parse_dt(value: str) -> dt.datetime:
     return dt.datetime.fromisoformat(value.removesuffix("Z"))
+
+
+def _format_sport_course_date(value: Optional[DateFilter]) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, dt.datetime):
+        return value.isoformat()
+    if isinstance(value, dt.date):
+        return dt.datetime.combine(value, dt.time.min).isoformat()
+    return value
+
+
+def _format_sport_course_location_ids(
+    location_ids: Optional[Union[str, Sequence[int]]],
+) -> str:
+    if location_ids is None:
+        return ""
+    if isinstance(location_ids, str):
+        return location_ids
+    return ";".join(str(int(location_id)) for location_id in location_ids)
+
+
+def _form_value(value: Any) -> Any:
+    if value is None:
+        return ""
+    return value
+
+
+def build_sport_course_search_payload(
+    *,
+    name: Optional[str] = None,
+    category_id: Optional[int] = None,
+    start_from_date: Optional[DateFilter] = None,
+    start_before_date: Optional[DateFilter] = None,
+    instructor_id: Optional[int] = None,
+    season_id: Optional[int] = None,
+    season_type_id: Optional[int] = None,
+    location_ids: Optional[Union[str, Sequence[int]]] = None,
+    age_months: Optional[int] = None,
+    start_hour: Optional[int] = None,
+    end_hour: Optional[int] = None,
+    days_of_week: Optional[Sequence[int]] = None,
+    languages: Optional[Sequence[int]] = None,
+    page: Optional[int] = None,
+) -> List[Tuple[str, Any]]:
+    payload: List[Tuple[str, Any]] = [
+        ("Name", _form_value(name)),
+        ("CategoryId", _form_value(category_id)),
+        ("StartFromDate", _format_sport_course_date(start_from_date)),
+        ("StartBeforeDate", _format_sport_course_date(start_before_date)),
+        ("InstructorId", _form_value(instructor_id)),
+        ("SeasonId", _form_value(season_id)),
+        ("SeasonTypeId", _form_value(season_type_id)),
+        ("LocationIdList", _format_sport_course_location_ids(location_ids)),
+        ("AgeMonths", _form_value(age_months)),
+    ]
+
+    if start_hour is not None:
+        payload.append(("StartHour", start_hour))
+    if end_hour is not None:
+        payload.append(("EndHour", end_hour))
+    if days_of_week:
+        payload.extend(("DaysOfWeek[]", day) for day in days_of_week)
+    if languages:
+        payload.extend(("Languages[]", language) for language in languages)
+    if page is not None:
+        payload.append(("Page", page))
+
+    return payload
 
 
 def build_booking_window(
@@ -321,6 +397,84 @@ class BookingClient:
             key=lambda item: (item["ActivityName"] or "", item["ActivityId"] or 0)
         )
         return activities
+
+    def list_sport_course_categories(self) -> List[JsonDict]:
+        return self.request_json(
+            "GET",
+            SPORT_COURSE_CATEGORIES_PATH,
+            action="sport_course_categories",
+        )
+
+    def list_sport_course_languages(self) -> List[JsonDict]:
+        return self.request_json(
+            "GET",
+            SPORT_COURSE_LANGUAGES_PATH,
+            action="sport_course_languages",
+        )
+
+    def list_sport_course_season_types(self) -> List[JsonDict]:
+        return self.request_json(
+            "GET",
+            SPORT_COURSE_SEASON_TYPES_PATH,
+            action="sport_course_season_types",
+        )
+
+    def list_sport_course_seasons(self, season_type_id: int) -> List[JsonDict]:
+        return self.request_json(
+            "GET",
+            SPORT_COURSE_SEASONS_PATH,
+            action=f"sport_course_seasons:{season_type_id}",
+            params={"seasonTypeId": season_type_id},
+        )
+
+    def list_sport_course_instructors(self, location_id: int) -> List[JsonDict]:
+        return self.request_json(
+            "GET",
+            f"{SPORT_COURSE_INSTRUCTORS_PATH}/{location_id}",
+            action=f"sport_course_instructors:{location_id}",
+        )
+
+    def search_sport_courses(
+        self,
+        *,
+        name: Optional[str] = None,
+        category_id: Optional[int] = None,
+        start_from_date: Optional[DateFilter] = None,
+        start_before_date: Optional[DateFilter] = None,
+        instructor_id: Optional[int] = None,
+        season_id: Optional[int] = None,
+        season_type_id: Optional[int] = None,
+        location_ids: Optional[Union[str, Sequence[int]]] = None,
+        age_months: Optional[int] = None,
+        start_hour: Optional[int] = None,
+        end_hour: Optional[int] = None,
+        days_of_week: Optional[Sequence[int]] = None,
+        languages: Optional[Sequence[int]] = None,
+        page: Optional[int] = None,
+    ) -> JsonDict:
+        payload = build_sport_course_search_payload(
+            name=name,
+            category_id=category_id,
+            start_from_date=start_from_date,
+            start_before_date=start_before_date,
+            instructor_id=instructor_id,
+            season_id=season_id,
+            season_type_id=season_type_id,
+            location_ids=location_ids,
+            age_months=age_months,
+            start_hour=start_hour,
+            end_hour=end_hour,
+            days_of_week=days_of_week,
+            languages=languages,
+            page=page,
+        )
+        return self.request_json(
+            "POST",
+            SPORT_COURSE_SEARCH_PATH,
+            action="sport_course_search",
+            data=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
 
     def fetch_slots(
         self,
@@ -657,6 +811,68 @@ def login_session(
 
 def list_activities(client: BookingClient) -> List[JsonDict]:
     return client.list_activities()
+
+
+def list_sport_course_categories(client: BookingClient) -> List[JsonDict]:
+    return client.list_sport_course_categories()
+
+
+def list_sport_course_languages(client: BookingClient) -> List[JsonDict]:
+    return client.list_sport_course_languages()
+
+
+def list_sport_course_season_types(client: BookingClient) -> List[JsonDict]:
+    return client.list_sport_course_season_types()
+
+
+def list_sport_course_seasons(
+    client: BookingClient,
+    season_type_id: int,
+) -> List[JsonDict]:
+    return client.list_sport_course_seasons(season_type_id)
+
+
+def list_sport_course_instructors(
+    client: BookingClient,
+    location_id: int,
+) -> List[JsonDict]:
+    return client.list_sport_course_instructors(location_id)
+
+
+def search_sport_courses(
+    client: BookingClient,
+    *,
+    name: Optional[str] = None,
+    category_id: Optional[int] = None,
+    start_from_date: Optional[DateFilter] = None,
+    start_before_date: Optional[DateFilter] = None,
+    instructor_id: Optional[int] = None,
+    season_id: Optional[int] = None,
+    season_type_id: Optional[int] = None,
+    location_ids: Optional[Union[str, Sequence[int]]] = None,
+    age_months: Optional[int] = None,
+    start_hour: Optional[int] = None,
+    end_hour: Optional[int] = None,
+    days_of_week: Optional[Sequence[int]] = None,
+    languages: Optional[Sequence[int]] = None,
+    page: Optional[int] = None,
+) -> JsonDict:
+    return client.search_sport_courses(
+        name=name,
+        category_id=category_id,
+        start_from_date=start_from_date,
+        start_before_date=start_before_date,
+        instructor_id=instructor_id,
+        season_id=season_id,
+        season_type_id=season_type_id,
+        location_ids=location_ids,
+        age_months=age_months,
+        start_hour=start_hour,
+        end_hour=end_hour,
+        days_of_week=days_of_week,
+        languages=languages,
+        page=page,
+    )
 
 
 def fetch_slots(
