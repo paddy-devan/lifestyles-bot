@@ -1,2 +1,1 @@
-# lifestyles-browser
-
+# lifestyles-bot
